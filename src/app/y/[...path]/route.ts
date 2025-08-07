@@ -112,9 +112,14 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
                 return `https://${path}${queryString}`;
             }
 
-            // 일반 YouTube URL 처리
+            // 일반 YouTube URL 처리 - https:// 중복 방지
             if (hasYoutubeDomain) {
-                return `https://${path}${queryString}`;
+                // 이미 https://가 있는지 확인
+                if (path.startsWith("https://")) {
+                    return `${path}${queryString}`;
+                } else {
+                    return `https://${path}${queryString}`;
+                }
             }
 
             // YouTube 도메인이 없는 경우 youtube.com에 추가
@@ -125,8 +130,12 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
 /**
  * 리다이렉트 페이지 URL 생성
  */
-const createRedirectPageUrl = (webUrl: string, cleanedLink: string, platform: string): string => {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+const createRedirectPageUrl = (webUrl: string, cleanedLink: string, platform: string, request: NextRequest): string => {
+    // 동적으로 baseUrl 생성 (Vercel 환경에서는 요청 헤더로부터)
+    const host = request.headers.get('host');
+    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${protocol}://${host}`;
+    
     const params = new URLSearchParams({
         url: webUrl,
         link: cleanedLink,
@@ -178,7 +187,7 @@ export async function GET(
                 ? `https://${cleanedLink}`
                 : `${YOUTUBE_WEB}${cleanedLink}`;
 
-            const redirectPageUrl = createRedirectPageUrl(webUrl, cleanedLink, "android");
+            const redirectPageUrl = createRedirectPageUrl(webUrl, cleanedLink, "android", request);
             return NextResponse.redirect(redirectPageUrl, 302);
         }
 
