@@ -64,16 +64,8 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
     // 디바이스 타입별 URL 생성
     switch (deviceType) {
         case "ios":
-            // iOS 인앱브라우저 체크
-            const isIOSInApp = isInAppBrowser(userAgent);
-
-            if (isIOSInApp) {
-                // iOS 인앱브라우저인 경우 리다이렉트 페이지 필요
-                return "IOS_INAPP_HTML_NEEDED";
-            } else {
-                // 일반 iOS 브라우저의 경우 youtube:// 스키마 사용
-                return `youtube://${cleanedLink}`;
-            }
+            // iOS의 경우 youtube:// 스키마 사용 (람다와 동일)
+            return `youtube://${cleanedLink}`;
 
         case "android":
             // Android 인앱브라우저에서 YouTube 앱 열기
@@ -83,10 +75,30 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
                 // 인앱브라우저인 경우 HTML 응답이 필요함을 표시
                 return "ANDROID_INAPP_HTML_NEEDED";
             } else {
-                // 일반 브라우저인 경우 간단한 intent 사용
-                return `intent://${cleanedLink}#Intent;scheme=youtube;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                    webUrl
-                )};end`;
+                // 일반 브라우저에서는 바로 intent URL로 리다이렉트
+                if (hasYoutubeDomain) {
+                    // YouTube URL인 경우 watch?v= 형태로 변환
+                    if (cleanedLink.includes("youtube.com/watch")) {
+                        // 전체 쿼리 파라미터 보존
+                        const queryStart = cleanedLink.indexOf("?");
+                        const queryString = queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
+                        return `intent://www.youtube.com/watch${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+                    } else if (cleanedLink.includes("youtube.com/playlist")) {
+                        // 플레이리스트 쿼리 파라미터 보존
+                        const queryStart = cleanedLink.indexOf("?");
+                        const queryString = queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
+                        return `intent://www.youtube.com/playlist${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+                    } else if (cleanedLink.includes("youtu.be/")) {
+                        // youtu.be 링크를 완전한 YouTube URL로 변환
+                        const parts = cleanedLink.split("youtu.be/")[1];
+                        const [videoId, ...queryParts] = parts.split("?");
+                        const additionalParams = queryParts.length > 0 ? `&${queryParts.join("&")}` : "";
+                        return `intent://www.youtube.com/watch?v=${videoId}${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+                    }
+                }
+
+                // 기본 YouTube 앱 연결
+                return `intent://www.youtube.com/${cleanedLink}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
             }
 
         default:
@@ -157,11 +169,8 @@ export async function GET(
         console.log("Device Type:", deviceType);
         console.log("Redirect Location:", redirectLocation);
 
-        // 인앱브라우저의 경우 리다이렉트 페이지로 이동
-        if (
-            redirectLocation === "ANDROID_INAPP_HTML_NEEDED" ||
-            redirectLocation === "IOS_INAPP_HTML_NEEDED"
-        ) {
+        // Android 인앱브라우저의 경우 리다이렉트 페이지로 이동
+        if (redirectLocation === "ANDROID_INAPP_HTML_NEEDED") {
             const cleanedLink = originalLink.replace(/^\//, "").replace(/^https?:\/\//, "");
             const hasYoutubeDomain =
                 cleanedLink.includes("youtube.com") || cleanedLink.includes("youtu.be");
@@ -169,8 +178,7 @@ export async function GET(
                 ? `https://${cleanedLink}`
                 : `${YOUTUBE_WEB}${cleanedLink}`;
 
-            const platform = redirectLocation === "ANDROID_INAPP_HTML_NEEDED" ? "android" : "ios";
-            const redirectPageUrl = createRedirectPageUrl(webUrl, cleanedLink, platform);
+            const redirectPageUrl = createRedirectPageUrl(webUrl, cleanedLink, "android");
             return NextResponse.redirect(redirectPageUrl, 302);
         }
 
