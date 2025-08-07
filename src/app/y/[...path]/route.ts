@@ -51,8 +51,11 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
         return YOUTUBE_WEB;
     }
 
-    // URL 정규화 - 프로토콜 제거
+    // URL 정규화 - 프로토콜 제거 (더 안전한 처리)
     cleanedLink = cleanedLink.replace(/^https?:\/\//, "");
+    
+    // 이중 슬래시 제거
+    cleanedLink = cleanedLink.replace(/\/+/g, "/");
 
     // youtube.com이나 youtu.be가 이미 포함되어 있는지 확인
     const hasYoutubeDomain =
@@ -81,24 +84,35 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
                     if (cleanedLink.includes("youtube.com/watch")) {
                         // 전체 쿼리 파라미터 보존
                         const queryStart = cleanedLink.indexOf("?");
-                        const queryString = queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
-                        return `intent://www.youtube.com/watch${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+                        const queryString =
+                            queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
+                        return `intent://www.youtube.com/watch${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                            webUrl
+                        )};end`;
                     } else if (cleanedLink.includes("youtube.com/playlist")) {
                         // 플레이리스트 쿼리 파라미터 보존
                         const queryStart = cleanedLink.indexOf("?");
-                        const queryString = queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
-                        return `intent://www.youtube.com/playlist${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+                        const queryString =
+                            queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
+                        return `intent://www.youtube.com/playlist${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                            webUrl
+                        )};end`;
                     } else if (cleanedLink.includes("youtu.be/")) {
                         // youtu.be 링크를 완전한 YouTube URL로 변환
                         const parts = cleanedLink.split("youtu.be/")[1];
                         const [videoId, ...queryParts] = parts.split("?");
-                        const additionalParams = queryParts.length > 0 ? `&${queryParts.join("&")}` : "";
-                        return `intent://www.youtube.com/watch?v=${videoId}${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+                        const additionalParams =
+                            queryParts.length > 0 ? `&${queryParts.join("&")}` : "";
+                        return `intent://www.youtube.com/watch?v=${videoId}${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                            webUrl
+                        )};end`;
                     }
                 }
 
                 // 기본 YouTube 앱 연결
-                return `intent://www.youtube.com/${cleanedLink}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+                return `intent://www.youtube.com/${cleanedLink}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                    webUrl
+                )};end`;
             }
 
         default:
@@ -130,12 +144,17 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
 /**
  * 리다이렉트 페이지 URL 생성
  */
-const createRedirectPageUrl = (webUrl: string, cleanedLink: string, platform: string, request: NextRequest): string => {
+const createRedirectPageUrl = (
+    webUrl: string,
+    cleanedLink: string,
+    platform: string,
+    request: NextRequest
+): string => {
     // 동적으로 baseUrl 생성 (Vercel 환경에서는 요청 헤더로부터)
-    const host = request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    const host = request.headers.get("host");
+    const protocol = request.headers.get("x-forwarded-proto") || "https";
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${protocol}://${host}`;
-    
+
     const params = new URLSearchParams({
         url: webUrl,
         link: cleanedLink,
