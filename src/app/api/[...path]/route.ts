@@ -3,8 +3,8 @@
  * 디바이스 타입 확인 및 YouTube 리다이렉트 처리
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
 
 const YOUTUBE_WEB = "https://www.youtube.com/";
 
@@ -13,11 +13,11 @@ const YOUTUBE_WEB = "https://www.youtube.com/";
  */
 const getDeviceType = (userAgent: string, headersList: Headers): string => {
     const ua = userAgent.toLowerCase();
-    
+
     // 모바일 디바이스 감지
     if (/iphone|ipad|ipod/.test(ua)) return "ios";
     if (/android/.test(ua)) return "android";
-    
+
     // 데스크탑 감지 (기본값)
     return "desktop";
 };
@@ -172,7 +172,9 @@ const generateAndroidInAppHtml = (webUrl: string, cleanedLink: string): string =
             try {
                 // YouTube 앱 열기 시도 - 다양한 방법 사용
                 const youtubeUrl = 'youtube://${cleanedLink}';
-                const intentUrl = 'intent://${cleanedLink}#Intent;scheme=youtube;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(webUrl)};end';
+                const intentUrl = 'intent://${cleanedLink}#Intent;scheme=youtube;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+        webUrl
+    )};end';
                 
                 let appOpened = false;
                 
@@ -262,10 +264,10 @@ export async function GET(
     try {
         const { path } = await params;
         const headersList = await headers();
-        const userAgent = headersList.get('user-agent') || '';
-        
+        const userAgent = headersList.get("user-agent") || "";
+
         // URL 경로 재구성
-        const rawPath = `/${path?.join('/') || ''}`;
+        const rawPath = `/${path?.join("/") || ""}`;
         const searchParams = request.nextUrl.searchParams;
         const rawQueryString = searchParams.toString();
 
@@ -310,13 +312,9 @@ export async function GET(
 
         // 일반적인 리다이렉트 응답
         return NextResponse.redirect(redirectLocation, 302);
-
     } catch (error) {
         console.error("Error in redirect handler:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
 
