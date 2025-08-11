@@ -23,7 +23,8 @@ export const createRedirectUrl = (
     }
 
     // URL 정규화 - 프로토콜 제거 (더 안전한 처리)
-    cleanedLink = cleanedLink.replace(/^https?:\/\//, "");
+    // https:/ 또는 http:/ (슬래시 하나 빠진 경우도 처리)
+    cleanedLink = cleanedLink.replace(/^https?:\/?\/?/, "");
 
     // 이중 슬래시 제거
     cleanedLink = cleanedLink.replace(/\/+/g, "/");
