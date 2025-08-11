@@ -87,28 +87,14 @@ export const createRedirectUrl = (
             }
 
         default:
-            // 데스크탑의 경우 항상 웹 버전으로 (더 정확한 URL 처리)
-            // 쿼리 파라미터 보존
-            const [path, query] = cleanedLink.split("?");
-            const queryString = query ? `?${query}` : "";
-
-            // YouTube 단축 URL (youtu.be) 처리
-            if (path.startsWith("youtu.be/")) {
-                return `https://${path}${queryString}`;
-            }
-
-            // 일반 YouTube URL 처리 - https:// 중복 방지
+            // 데스크탑의 경우 항상 웹 버전으로 (원본 URL 그대로 사용)
             if (hasYoutubeDomain) {
-                // 이미 https://가 있는지 확인
-                if (path.startsWith("https://")) {
-                    return `${path}${queryString}`;
-                } else {
-                    return `https://${path}${queryString}`;
-                }
+                // YouTube 도메인이 있는 경우 https:// 추가하여 완전한 URL 반환
+                return `https://${cleanedLink}`;
             }
 
             // YouTube 도메인이 없는 경우 youtube.com에 추가
-            return `${YOUTUBE_WEB}${path}${queryString}`;
+            return `${YOUTUBE_WEB}${cleanedLink}`;
     }
 };
 

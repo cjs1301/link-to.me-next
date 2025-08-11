@@ -6,6 +6,10 @@ import { generateSocialMetaHtml } from "@/utils/htmlGenerator";
 import { createRedirectUrl, createRedirectPageUrl } from "@/utils/urlProcessor";
 import { YOUTUBE_WEB } from "@/utils/constants";
 
+// Next.js 라우트 세그먼트 설정 - 캐시 완전 비활성화
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 /**
  * GET 요청 핸들러
  */
@@ -26,6 +30,7 @@ export async function GET(
         console.log("Raw Path:", rawPath);
         console.log("Query String:", rawQueryString);
         console.log("User Agent:", userAgent);
+        console.log("Is Social Crawler:", isSocialCrawler(userAgent));
 
         // 루트 경로 처리
         if (!rawPath || rawPath === "/") {
@@ -81,8 +86,17 @@ export async function GET(
             return NextResponse.redirect(redirectPageUrl, 302);
         }
 
-        // 일반적인 리다이렉트 응답
-        return NextResponse.redirect(redirectLocation, 302);
+        // 일반적인 리다이렉트 응답 (캐시 완전 비활성화)
+        const response = NextResponse.redirect(redirectLocation, 302);
+        response.headers.set(
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        );
+        response.headers.set("Pragma", "no-cache");
+        response.headers.set("Expires", "0");
+        response.headers.set("Surrogate-Control", "no-store");
+        response.headers.set("X-Accel-Expires", "0");
+        return response;
     } catch (error) {
         console.error("Error in redirect handler:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
