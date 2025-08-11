@@ -1,48 +1,19 @@
 /**
- * Next.js 15 App Router API Route
- * 디바이스 타입 확인 및 YouTube 리다이렉트 처리
+ * URL 처리 및 리다이렉트 URL 생성 유틸리티
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-
-const YOUTUBE_WEB = "https://www.youtube.com/";
-
-/**
- * User-Agent와 헤더에서 디바이스 타입 확인
- */
-const getDeviceType = (userAgent: string): string => {
-    const ua = userAgent.toLowerCase();
-
-    // 모바일 디바이스 감지
-    if (/iphone|ipad|ipod/.test(ua)) return "ios";
-    if (/android/.test(ua)) return "android";
-
-    // 데스크탑 감지 (기본값)
-    return "desktop";
-};
-
-/**
- * User-Agent에서 인앱브라우저 감지
- */
-const isInAppBrowser = (userAgent: string): boolean => {
-    const inAppPatterns = [
-        "FBAN",
-        "FBAV", // Facebook
-        "Instagram", // Instagram
-        "KAKAOTALK", // KakaoTalk
-        "Line/", // Line
-        "wv", // WebView 일반적인 패턴
-        "Version/.*Mobile.*Safari", // 모바일 Safari (인앱일 가능성)
-    ];
-
-    return inAppPatterns.some((pattern) => new RegExp(pattern, "i").test(userAgent));
-};
+import { NextRequest } from "next/server";
+import { isInAppBrowser } from "./deviceDetection";
+import { YOUTUBE_WEB } from "./constants";
 
 /**
  * URL 정리 및 리다이렉트 URL 생성
  */
-const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string): string => {
+export const createRedirectUrl = (
+    rawUrl: string,
+    deviceType: string,
+    userAgent: string
+): string => {
     // 앞쪽 슬래시 제거
     let cleanedLink = rawUrl.replace(/^\//, "");
 
@@ -53,7 +24,7 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
 
     // URL 정규화 - 프로토콜 제거 (더 안전한 처리)
     cleanedLink = cleanedLink.replace(/^https?:\/\//, "");
-    
+
     // 이중 슬래시 제거
     cleanedLink = cleanedLink.replace(/\/+/g, "/");
 
@@ -144,7 +115,7 @@ const createRedirectUrl = (rawUrl: string, deviceType: string, userAgent: string
 /**
  * 리다이렉트 페이지 URL 생성
  */
-const createRedirectPageUrl = (
+export const createRedirectPageUrl = (
     webUrl: string,
     cleanedLink: string,
     platform: string,
@@ -162,68 +133,3 @@ const createRedirectPageUrl = (
     });
     return `${baseUrl}/redirect?${params.toString()}`;
 };
-
-/**
- * GET 요청 핸들러
- */
-export async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ path: string[] }> }
-) {
-    try {
-        const { path } = await params;
-        const headersList = await headers();
-        const userAgent = headersList.get("user-agent") || "";
-
-        // URL 경로 재구성
-        const rawPath = `/${path?.join("/") || ""}`;
-        const searchParams = request.nextUrl.searchParams;
-        const rawQueryString = searchParams.toString();
-
-        console.log("Raw Path:", rawPath);
-        console.log("Query String:", rawQueryString);
-        console.log("User Agent:", userAgent);
-
-        // 루트 경로 처리
-        if (!rawPath || rawPath === "/") {
-            return NextResponse.redirect(YOUTUBE_WEB, 302);
-        }
-
-        // URL 처리 및 리다이렉트
-        const originalLink = `${rawPath}${rawQueryString ? `?${rawQueryString}` : ""}`;
-        const deviceType = getDeviceType(userAgent);
-        const redirectLocation = createRedirectUrl(originalLink, deviceType, userAgent);
-
-        console.log("Device Type:", deviceType);
-        console.log("Redirect Location:", redirectLocation);
-
-        // Android 인앱브라우저의 경우 리다이렉트 페이지로 이동
-        if (redirectLocation === "ANDROID_INAPP_HTML_NEEDED") {
-            const cleanedLink = originalLink.replace(/^\//, "").replace(/^https?:\/\//, "");
-            const hasYoutubeDomain =
-                cleanedLink.includes("youtube.com") || cleanedLink.includes("youtu.be");
-            const webUrl = hasYoutubeDomain
-                ? `https://${cleanedLink}`
-                : `${YOUTUBE_WEB}${cleanedLink}`;
-
-            const redirectPageUrl = createRedirectPageUrl(webUrl, cleanedLink, "android", request);
-            return NextResponse.redirect(redirectPageUrl, 302);
-        }
-
-        // 일반적인 리다이렉트 응답
-        return NextResponse.redirect(redirectLocation, 302);
-    } catch (error) {
-        console.error("Error in redirect handler:", error);
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-    }
-}
-
-/**
- * 다른 HTTP 메서드들도 동일하게 처리
- */
-export const POST = GET;
-export const PUT = GET;
-export const DELETE = GET;
-export const PATCH = GET;
-export const HEAD = GET;
-export const OPTIONS = GET;
