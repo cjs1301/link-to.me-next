@@ -3,17 +3,74 @@
  */
 
 import { NextRequest } from "next/server";
-import { isInAppBrowser } from "./deviceDetection";
 import { YOUTUBE_WEB } from "./constants";
+
+/**
+ * 안드로이드용 Intent URL 생성 (향상된 호환성)
+ */
+const generateAndroidIntentUrl = (
+    cleanedLink: string,
+    webUrl: string,
+    hasYoutubeDomain: boolean
+): string => {
+    try {
+        if (hasYoutubeDomain) {
+            // YouTube URL인 경우 타입별 처리
+            if (cleanedLink.includes("youtube.com/watch")) {
+                // 일반 동영상 링크
+                const queryStart = cleanedLink.indexOf("?");
+                const queryString = queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
+                return `intent://www.youtube.com/watch${queryString}#Intent;scheme=https;package=com.google.android.youtube;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(
+                    webUrl
+                )};end`;
+            } else if (cleanedLink.includes("youtube.com/playlist")) {
+                // 플레이리스트 링크
+                const queryStart = cleanedLink.indexOf("?");
+                const queryString = queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
+                return `intent://www.youtube.com/playlist${queryString}#Intent;scheme=https;package=com.google.android.youtube;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(
+                    webUrl
+                )};end`;
+            } else if (cleanedLink.includes("youtu.be/")) {
+                // youtu.be 단축 링크 처리 (향상된 파싱)
+                const parts = cleanedLink.split("youtu.be/")[1];
+                if (parts) {
+                    const [videoId, ...queryParts] = parts.split("?");
+                    const additionalParams =
+                        queryParts.length > 0 ? `&${queryParts.join("&")}` : "";
+                    return `intent://www.youtube.com/watch?v=${videoId}${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(
+                        webUrl
+                    )};end`;
+                }
+            } else if (
+                cleanedLink.includes("youtube.com/channel/") ||
+                cleanedLink.includes("youtube.com/c/") ||
+                cleanedLink.includes("youtube.com/@")
+            ) {
+                // 채널 링크
+                return `intent://www.youtube.com/${cleanedLink}#Intent;scheme=https;package=com.google.android.youtube;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(
+                    webUrl
+                )};end`;
+            }
+        }
+
+        // 기본 YouTube 앱 연결 (개선된 형태)
+        const finalLink = cleanedLink.startsWith("youtube.com/")
+            ? cleanedLink
+            : `youtube.com/${cleanedLink}`;
+        return `intent://www.${finalLink}#Intent;scheme=https;package=com.google.android.youtube;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(
+            webUrl
+        )};end`;
+    } catch (error) {
+        console.error("Intent URL 생성 중 오류:", error);
+        // 오류 발생 시 기본 웹 URL 반환
+        return webUrl;
+    }
+};
 
 /**
  * URL 정리 및 리다이렉트 URL 생성
  */
-export const createRedirectUrl = (
-    rawUrl: string,
-    deviceType: string,
-    userAgent: string
-): string => {
+export const createRedirectUrl = (rawUrl: string, deviceType: string): string => {
     // 앞쪽 슬래시 제거
     let cleanedLink = rawUrl.replace(/^\//, "");
 
@@ -43,49 +100,9 @@ export const createRedirectUrl = (
             return `youtube://${cleanedLink}`;
 
         case "android":
-            // Android 인앱브라우저에서 YouTube 앱 열기
-            const isInApp = isInAppBrowser(userAgent);
-
-            if (isInApp) {
-                // 인앱브라우저인 경우 HTML 응답이 필요함을 표시
-                return "ANDROID_INAPP_HTML_NEEDED";
-            } else {
-                // 일반 브라우저에서는 바로 intent URL로 리다이렉트
-                if (hasYoutubeDomain) {
-                    // YouTube URL인 경우 watch?v= 형태로 변환
-                    if (cleanedLink.includes("youtube.com/watch")) {
-                        // 전체 쿼리 파라미터 보존
-                        const queryStart = cleanedLink.indexOf("?");
-                        const queryString =
-                            queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
-                        return `intent://www.youtube.com/watch${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                            webUrl
-                        )};end`;
-                    } else if (cleanedLink.includes("youtube.com/playlist")) {
-                        // 플레이리스트 쿼리 파라미터 보존
-                        const queryStart = cleanedLink.indexOf("?");
-                        const queryString =
-                            queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
-                        return `intent://www.youtube.com/playlist${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                            webUrl
-                        )};end`;
-                    } else if (cleanedLink.includes("youtu.be/")) {
-                        // youtu.be 링크를 완전한 YouTube URL로 변환
-                        const parts = cleanedLink.split("youtu.be/")[1];
-                        const [videoId, ...queryParts] = parts.split("?");
-                        const additionalParams =
-                            queryParts.length > 0 ? `&${queryParts.join("&")}` : "";
-                        return `intent://www.youtube.com/watch?v=${videoId}${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                            webUrl
-                        )};end`;
-                    }
-                }
-
-                // 기본 YouTube 앱 연결
-                return `intent://www.youtube.com/${cleanedLink}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                    webUrl
-                )};end`;
-            }
+            // Android에서는 인앱브라우저든 일반 브라우저든 바로 Intent URL로 시도
+            console.log("Android 감지 - Intent URL로 직접 리다이렉트 시도");
+            return generateAndroidIntentUrl(cleanedLink, webUrl, hasYoutubeDomain);
 
         default:
             // 데스크탑의 경우 항상 웹 버전으로 (원본 URL 그대로 사용)

@@ -30,55 +30,129 @@ function RedirectContent() {
 
     const openYouTubeAndroid = () => {
         try {
-            // 람다와 동일한 정교한 Intent URL 생성
-            let intentUrl = "";
             const link = cleanedLink;
+            let intentUrl = "";
+            let youtubeSchemeUrl = "";
 
-            // URL 타입에 따른 intent URL 생성
+            console.log("안드로이드 YouTube 앱 열기 시도:", { link, webUrl });
+
+            // URL 타입에 따른 intent URL 및 youtube:// 스키마 URL 생성
             if (link.includes("youtube.com/watch")) {
-                // 전체 쿼리 파라미터 보존
+                // 일반 동영상 링크
                 const queryStart = link.indexOf("?");
                 const queryString = queryStart !== -1 ? link.substring(queryStart) : "";
+
                 intentUrl = `intent://www.youtube.com/watch${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
                     webUrl
                 )};end`;
+                youtubeSchemeUrl = `youtube://www.youtube.com/watch${queryString}`;
             } else if (link.includes("youtube.com/playlist")) {
-                // 플레이리스트 쿼리 파라미터 보존
+                // 플레이리스트 링크
                 const queryStart = link.indexOf("?");
                 const queryString = queryStart !== -1 ? link.substring(queryStart) : "";
+
                 intentUrl = `intent://www.youtube.com/playlist${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
                     webUrl
                 )};end`;
+                youtubeSchemeUrl = `youtube://www.youtube.com/playlist${queryString}`;
             } else if (link.includes("youtu.be/")) {
-                // youtu.be 링크를 완전한 YouTube URL로 변환
+                // youtu.be 단축 링크 처리
                 const parts = link.split("youtu.be/")[1];
-                const [videoId, ...queryParts] = parts.split("?");
-                const additionalParams = queryParts.length > 0 ? `&${queryParts.join("&")}` : "";
-                intentUrl = `intent://www.youtube.com/watch?v=${videoId}${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                    webUrl
-                )};end`;
-            } else {
+                if (parts) {
+                    const [videoId, ...queryParts] = parts.split("?");
+                    const additionalParams =
+                        queryParts.length > 0 ? `&${queryParts.join("&")}` : "";
+
+                    intentUrl = `intent://www.youtube.com/watch?v=${videoId}${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                        webUrl
+                    )};end`;
+                    youtubeSchemeUrl = `youtube://www.youtube.com/watch?v=${videoId}${additionalParams}`;
+                } else {
+                    // 잘못된 youtu.be 링크인 경우 웹으로 fallback
+                    window.location.href = webUrl;
+                    return;
+                }
+            } else if (
+                link.includes("youtube.com/channel/") ||
+                link.includes("youtube.com/c/") ||
+                link.includes("youtube.com/@")
+            ) {
+                // 채널 링크
                 intentUrl = `intent://www.youtube.com/${link}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
                     webUrl
                 )};end`;
+                youtubeSchemeUrl = `youtube://www.youtube.com/${link}`;
+            } else {
+                // 기타 YouTube 링크
+                const cleanLink = link.startsWith("youtube.com/") ? link : `youtube.com/${link}`;
+                intentUrl = `intent://www.${cleanLink}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                    webUrl
+                )};end`;
+                youtubeSchemeUrl = `youtube://www.${cleanLink}`;
             }
 
-            // 첫 번째 시도: Intent URL
-            try {
-                window.location.href = intentUrl;
-            } catch (e) {
-                console.log("Intent URL 실패:", e);
-                // fallback: youtube:// 스키마
+            console.log("생성된 URLs:", { intentUrl, youtubeSchemeUrl });
+
+            // 다단계 fallback 메커니즘
+            const tryOpenApp = async () => {
+                // 1단계: Intent URL로 시도 (가장 권장되는 방법)
                 try {
-                    window.location.href = `youtube://${cleanedLink}`;
-                } catch (e2) {
-                    console.log("YouTube URL 스키마 실패:", e2);
-                    // 최종 fallback: 웹에서 열기
-                    window.location.href = webUrl;
+                    console.log("1단계: Intent URL 시도");
+                    window.location.href = intentUrl;
+
+                    // Intent URL 시도 후 1초 대기
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+                    // 페이지가 여전히 보이면 2단계로
+                    if (!document.hidden) {
+                        throw new Error("Intent URL 실패");
+                    }
+                } catch (e) {
+                    console.log("Intent URL 실패, 2단계 시도:", e);
+
+                    // 2단계: youtube:// 스키마로 시도
+                    try {
+                        console.log("2단계: YouTube 스키마 시도");
+                        window.location.href = youtubeSchemeUrl;
+
+                        // 스키마 시도 후 1초 대기
+                        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+                        // 여전히 실패하면 3단계로
+                        if (!document.hidden) {
+                            throw new Error("YouTube 스키마 실패");
+                        }
+                    } catch (e2) {
+                        console.log("YouTube 스키마 실패, 3단계 시도:", e2);
+
+                        // 3단계: Google Play Store로 유도 시도
+                        try {
+                            console.log("3단계: Play Store 시도");
+                            const playStoreUrl = "market://details?id=com.google.android.youtube";
+                            window.location.href = playStoreUrl;
+
+                            await new Promise((resolve) => setTimeout(resolve, 1500));
+
+                            // Play Store도 실패하면 웹으로
+                            if (!document.hidden) {
+                                throw new Error("Play Store 실패");
+                            }
+                        } catch (e3) {
+                            console.log("Play Store 실패, 웹 브라우저로 이동:", e3);
+                            // 최종 fallback: 웹에서 열기
+                            window.location.href = webUrl;
+                        }
+                    }
                 }
-            }
+            };
+
+            // 비동기 실행
+            tryOpenApp().catch((error) => {
+                console.error("모든 시도 실패:", error);
+                window.location.href = webUrl;
+            });
         } catch (error) {
-            console.error("YouTube 앱 열기 실패:", error);
+            console.error("YouTube 앱 열기 중 오류 발생:", error);
             window.location.href = webUrl;
         }
     };
@@ -158,16 +232,27 @@ function RedirectContent() {
                 ) : (
                     <div className="space-y-4">
                         <div className="w-12 h-12 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin mx-auto"></div>
-                        <p className="text-gray-600">앱으로 이동중...</p>
-                        <p className="text-sm text-gray-500">
-                            앱이 열리지 않나요?
-                            <button
-                                onClick={() => (window.location.href = webUrl)}
-                                className="text-red-500 hover:text-red-600 underline ml-1"
-                            >
-                                브라우저에서 열기
-                            </button>
-                        </p>
+                        <p className="text-gray-600">YouTube 앱으로 이동중...</p>
+                        <div className="text-sm text-gray-500 space-y-2">
+                            <p>앱이 설치되어 있지 않거나 열리지 않는 경우:</p>
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    onClick={() =>
+                                        (window.location.href =
+                                            "market://details?id=com.google.android.youtube")
+                                    }
+                                    className="text-blue-500 hover:text-blue-600 underline"
+                                >
+                                    YouTube 앱 설치하기
+                                </button>
+                                <button
+                                    onClick={() => (window.location.href = webUrl)}
+                                    className="text-red-500 hover:text-red-600 underline"
+                                >
+                                    브라우저에서 열기
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

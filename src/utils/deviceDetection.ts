@@ -17,38 +17,93 @@ export const getDeviceType = (userAgent: string): string => {
 };
 
 /**
- * User-Agent에서 인앱브라우저 감지
+ * User-Agent에서 인앱브라우저 감지 (개선된 로직)
  */
 export const isInAppBrowser = (userAgent: string): boolean => {
+    const ua = userAgent.toLowerCase();
+
+    // 명확한 인앱브라우저 패턴들
     const inAppPatterns = [
-        "FBAN",
-        "FBAV", // Facebook
-        "Instagram", // Instagram
-        "KAKAOTALK", // KakaoTalk
-        "Line/", // Line
-        "wv", // WebView 일반적인 패턴
-        "Version/.*Mobile.*Safari", // 모바일 Safari (인앱일 가능성)
+        "fban", // Facebook
+        "fbav", // Facebook
+        "instagram", // Instagram
+        "kakaotalk", // KakaoTalk
+        "line/", // Line
+        "naver", // Naver
+        "whale", // Naver Whale
+        "discord", // Discord
+        "telegram", // Telegram
+        "whatsapp", // WhatsApp
+        "twitterandroid", // Twitter Android
+        "linkedinapp", // LinkedIn
     ];
 
-    return inAppPatterns.some((pattern) => new RegExp(pattern, "i").test(userAgent));
+    // WebView 패턴 (더 정교한 감지)
+    const webViewPatterns = [
+        "; wv\\)", // Android WebView 표준 패턴 (괄호 이스케이프)
+        "version/.* mobile.* safari.*wv", // iOS WebView
+    ];
+
+    // 명확한 인앱브라우저 확인
+    const isDefiniteInApp = inAppPatterns.some((pattern) => ua.includes(pattern));
+
+    // WebView 패턴 확인
+    const isWebView = webViewPatterns.some((pattern) => new RegExp(pattern, "i").test(ua));
+
+    // 일반 브라우저 제외 (false positive 방지)
+    const isStandardBrowser =
+        (ua.includes("chrome/") && !ua.includes("; wv)")) ||
+        ua.includes("firefox/") ||
+        (ua.includes("safari/") && !ua.includes("version/")) ||
+        ua.includes("edge/");
+
+    console.log("인앱브라우저 감지:", {
+        userAgent: userAgent,
+        isDefiniteInApp,
+        isWebView,
+        isStandardBrowser,
+        result: isDefiniteInApp || (isWebView && !isStandardBrowser),
+    });
+
+    return isDefiniteInApp || (isWebView && !isStandardBrowser);
 };
 
 /**
- * 소셜 미디어 크롤러 감지
+ * 소셜 미디어 크롤러 감지 (인앱브라우저와 구분)
  */
 export const isSocialCrawler = (userAgent: string): boolean => {
+    const ua = userAgent.toLowerCase();
+
+    // 실제 크롤러/봇 패턴들 (사용자 브라우저가 아닌)
     const crawlerPatterns = [
-        "facebookexternalhit", // Facebook
-        "Twitterbot", // Twitter
-        "LinkedInBot", // LinkedIn
-        "WhatsApp", // WhatsApp
-        "TelegramBot", // Telegram
-        "Slackbot", // Slack
-        "KakaoTalk", // KakaoTalk
-        "discord", // Discord
-        "Applebot", // Apple
-        "GoogleBot", // Google
+        "facebookexternalhit", // Facebook 크롤러
+        "twitterbot", // Twitter 봇
+        "linkedinbot", // LinkedIn 봇
+        "telegrambot", // Telegram 봇
+        "slackbot", // Slack 봇
+        "discordbot", // Discord 봇
+        "applebot", // Apple 봇
+        "googlebot", // Google 봇
+        "bingbot", // Bing 봇
+        "yandexbot", // Yandex 봇
+        "baiduspider", // Baidu 봇
     ];
 
-    return crawlerPatterns.some((pattern) => new RegExp(pattern, "i").test(userAgent));
+    // 인앱브라우저 패턴은 제외 (실제 사용자이므로)
+    const isInAppBrowser =
+        (ua.includes("kakaotalk") && ua.includes("inapp")) ||
+        (ua.includes("line/") && ua.includes("mobile")) ||
+        (ua.includes("whatsapp") && ua.includes("mobile"));
+
+    const isCrawler = crawlerPatterns.some((pattern) => ua.includes(pattern));
+
+    console.log("소셜 크롤러 감지:", {
+        userAgent: userAgent,
+        isCrawler,
+        isInAppBrowser,
+        result: isCrawler && !isInAppBrowser,
+    });
+
+    // 크롤러이면서 인앱브라우저가 아닌 경우에만 true
+    return isCrawler && !isInAppBrowser;
 };

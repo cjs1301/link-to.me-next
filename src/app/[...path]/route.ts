@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { getDeviceType, isSocialCrawler } from "@/utils/deviceDetection";
 import { getYouTubeMetadata } from "@/utils/youtubeMetadata";
 import { generateSocialMetaHtml } from "@/utils/htmlGenerator";
-import { createRedirectUrl, createRedirectPageUrl } from "@/utils/urlProcessor";
+import { createRedirectUrl } from "@/utils/urlProcessor";
 import { YOUTUBE_WEB } from "@/utils/constants";
 
 // Next.js 라우트 세그먼트 설정 - 캐시 완전 비활성화
@@ -40,7 +40,7 @@ export async function GET(
         // URL 처리 및 리다이렉트
         const originalLink = `${rawPath}${rawQueryString ? `?${rawQueryString}` : ""}`;
         const deviceType = getDeviceType(userAgent);
-        const redirectLocation = createRedirectUrl(originalLink, deviceType, userAgent);
+        const redirectLocation = createRedirectUrl(originalLink, deviceType);
 
         console.log("Device Type:", deviceType);
         console.log("Redirect Location:", redirectLocation);
@@ -71,19 +71,6 @@ export async function GET(
                 console.error("메타데이터 처리 실패:", error);
                 // 실패 시 일반 리다이렉트로 폴백
             }
-        }
-
-        // Android 인앱브라우저의 경우 리다이렉트 페이지로 이동
-        if (redirectLocation === "ANDROID_INAPP_HTML_NEEDED") {
-            const cleanedLink = originalLink.replace(/^\//, "").replace(/^https?:\/\//, "");
-            const hasYoutubeDomain =
-                cleanedLink.includes("youtube.com") || cleanedLink.includes("youtu.be");
-            const webUrl = hasYoutubeDomain
-                ? `https://${cleanedLink}`
-                : `${YOUTUBE_WEB}${cleanedLink}`;
-
-            const redirectPageUrl = createRedirectPageUrl(webUrl, cleanedLink, "android", request);
-            return NextResponse.redirect(redirectPageUrl, 302);
         }
 
         // 일반적인 리다이렉트 응답 (캐시 완전 비활성화)
